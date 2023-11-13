@@ -9,4 +9,7 @@ class Value:
     def __add__(self, other):
         out = Value(self.data + other.data)
         return out
-
+    
+    def __mul__(self, other):
+        out = Value(self.data * other.data)
+        return out
