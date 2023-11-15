@@ -39,6 +39,12 @@ class Value:
         out._backward = _backward
         return out
 
+    def __neg__(self):
+        return self * -1
+    
+    def __sub__(self, other):
+        return self + (-1 * other)
+
     def tanh(self):
         x = self.data
         t = (math.exp(2*x)-1)/(math.exp(2*x)+1)
