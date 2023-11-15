@@ -28,7 +28,7 @@ class Value:
         out._backward = _backward
         return out
 
-    def __truediv__(self):
+    def __truediv__(self, other):
         return self * other**-1
     
     def __pow__(self, other):
@@ -43,7 +43,7 @@ class Value:
         return self * -1
     
     def __sub__(self, other):
-        return self + (-1 * other)
+        return self + (-other)
 
     def tanh(self):
         x = self.data
