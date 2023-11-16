@@ -1,7 +1,16 @@
 import random
 from micrograd.engine import Value
 
-class Neuron:
+class Module:
+
+    def zero_grad(self):
+        for p in self.parameters():
+            p.grad = 0.0
+
+    def parameters(self):
+        return []
+
+class Neuron(Module):
     def __init__(self, input_size):
         self.w = [Value(random.uniform(-1,1)) for _ in range(input_size)]
         self.b = Value(random.uniform(-1,1))
@@ -14,7 +23,7 @@ class Neuron:
     def parameters(self):
         return self.w + [self.b]
 
-class Layer:
+class Layer(Module):
     def __init__(self, input_size, layer_size):
         self.neurons = [Neuron(input_size) for _ in range(layer_size)]
         
@@ -25,7 +34,7 @@ class Layer:
     def parameters(self):
         return [p for neuron in self.neurons for p in neuron.parameters()]
 
-class MLP:
+class MLP(Module):
     def __init__(self, input_size, layers_sizes):
         sz = [input_size] + layers_sizes
         self.layers = [Layer(sz[i], sz[i+1]) for i in range(len(layers_sizes))]
