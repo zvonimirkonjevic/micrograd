@@ -19,4 +19,12 @@ class Layer:
         outs = [n(x) for n in self.neurons]
         return outs[0] if len(outs)==1 else outs
 
+class MLP:
+    def __init__(self, input_size, layers_sizes):
+        sz = [input_size] + layers_sizes
+        self.layers = [Layer(sz[i], sz[i+1]) for i in range(len(layers_sizes))]
 
+    def __call__(self, x):
+        for layer in self.layers:
+            x = Layer(x)
+        return x
