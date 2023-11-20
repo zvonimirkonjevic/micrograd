@@ -63,6 +63,15 @@ class Value:
         out._backward = _backward
         return out
 
+    def relu(self):
+        x = self.data
+        t = 0 if x<0 else x
+        out = Value(t, (self,), 'relu')
+        def _backward():
+            self.grad += (0 if x<0 else 1) * out.grad
+        out._backward = _backward
+        return out
+
     def exp(self):
         x = self.data
         out = Value(math.exp(x), (self,), 'exp')
