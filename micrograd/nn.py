@@ -63,6 +63,22 @@ class Layer(Module):
     
     def parameters(self):
         return [p for neuron in self.neurons for p in neuron.parameters()]
+    
+
+class RNNLayer(Module):
+    def __init__(self, input_size, layer_size, **kwargs):
+        self.neuron = RNNNeuron(input_size, **kwargs)
+        self.outs = layer_size
+
+    def __call__(self, x, h_prev):
+        h_new = []
+        for i in range(len(x)):
+            h = self.neuron(x[i], h_prev)
+            h_new.append(h)
+        return h_new
+
+    def parameters(self):
+        return self.neuron.parameters()
 
 
 # 
