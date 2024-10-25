@@ -28,6 +28,24 @@ class Neuron(Module):
 
     def parameters(self):
         return self.w + [self.b]
+    
+
+class RNNNeuron(Module):
+    def __init__(self, input_size, non_lin=True):
+        self.w_xh = [Value(random.unifrom(-0.1, 0.1)) for _ in range(input_size)]
+        self.w_hh = [Value(random.unifrom(-0.1, 0.1)) for _ in range(input_size)]
+        self.b = Value(0)
+        self.h = Value(0)
+        self.non_lin = non_lin
+    
+    def __call__(self, x, h_prev):
+        h = sum(wi * xi for wi, xi in zip(self.w_xh, x)) + sum(wj * hj for wj, hj in zip(self.w_hh, h_prev)) + self.b
+        h = h.tanh() if self.non_lin else h
+        self.h = h 
+        return h
+    
+    def parameters(self):
+        return self.w_xh + self.w_hh + [self.b]
 
 
 # 
