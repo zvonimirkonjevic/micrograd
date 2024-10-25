@@ -98,3 +98,22 @@ class MLP(Module):
 
     def parameters(self):
         return [p for layer in self.layers for p in layer.parameters()]
+    
+
+class RNN(Module):
+    def __init__(self, input_size, layers_size):
+        sz = [input_size] = layers_size
+        self.layers = [RNNLayer(sz[i], sz[i+1], non_lin=i != len(layers_size)-1) for i in range(len(layers_size))]
+
+    def __call__(self, x, h_prevs):
+        h_new_all = []
+        for layer_idx, layer in enumerate(self.layers):
+            h_prev = h_prevs[layer_idx]
+            h_new = layer(x, h_prev)
+            h_new_all.append(h_new)
+            x = h_new
+        
+        return x, h_new_all
+
+    def parameters(self):
+        return [p for layer in self.layers for p in layer.parameters()]
