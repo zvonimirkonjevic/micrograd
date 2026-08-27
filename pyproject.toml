@@ -4,4 +4,6 @@ version = "0.1.0"
 description = "A tiny scalar-valued automatic differentiation engine and neural net library on top of it with PyTorch-like API"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.2",
+]
