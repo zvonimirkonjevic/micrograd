@@ -167,7 +167,7 @@ class MLP(Module):
         """
 
         for layer in self.layers:
-            x = Layer(x)
+            x = layer(x)
         return x
 
     def parameters(self):
