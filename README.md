@@ -137,13 +137,9 @@ is traversed.
 
 ### Limitations
 
-- **`Tensor` does not handle broadcasting.** The elementwise ops assume both
-  operands already share a shape. NumPy broadcasts happily in the forward pass,
-  but the backward pass never reduces the gradient back to each operand's own
-  shape, so `Tensor([[1.,2.],[3.,4.]]) + Tensor([1.,1.])` succeeds forward and
-  then raises `ValueError: non-broadcastable output operand` in `backward()`.
-  This is deliberate: broadcasting gradients is a separate idea from the chain
-  rule, and folding it in would obscure the part this repo is about.
+- `Tensor.__matmul__` requires two 2-D operands. It does not broadcast over a
+  batch dimension, and NumPy's 1-D matmul rules would silently produce
+  mis-shaped gradients, so the elementwise ops broadcast but this one does not.
 - `Tensor` has no activations, so no neural nets are built on it yet. `src/nn.py`
   runs entirely on `Value`.
 - The scalar engine allocates a node per arithmetic operation. It is meant to be
@@ -177,10 +173,10 @@ activation, the power rule's rejection of a `Value` exponent, gradient
 accumulation through a diamond graph, and a hand-built neuron. `tests/test_tensor.py`
 covers the elementwise ops, matmul on a deliberately non-square `(2,3) @ (3,4)`
 product where a misplaced transpose cannot accidentally still typecheck,
-transpose, the float32 cast, and the sum-of-elements meaning of a non-scalar
-root. Two tests pin known divergences rather than correct behaviour: the
-broadcasting gap above, and `relu`'s subgradient at exactly 0, which is 1 here
-and 0 in PyTorch.
+transpose, the float32 cast, the sum-of-elements meaning of a non-scalar root,
+and each elementwise op against every shape broadcasting can stretch. One test
+pins a known divergence rather than correct behaviour: `relu`'s subgradient at
+exactly 0, which is 1 here and 0 in PyTorch.
 
 ### License
 
