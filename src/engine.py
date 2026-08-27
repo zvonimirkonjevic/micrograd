@@ -138,6 +138,33 @@ class Value:
 
         return self * other
 
+    def __radd__(self, other):
+        """Handles ``other + self`` when ``other`` is a plain int or float.
+
+        Also what makes the builtin ``sum`` work over ``Value`` objects, since
+        it starts its accumulation from the plain integer 0.
+        """
+
+        return self + other
+
+    def __rsub__(self, other):
+        """Handles ``other - self`` when ``other`` is a plain int or float.
+
+        Subtraction does not commute, so this negates first rather than
+        delegating to ``__sub__``.
+        """
+
+        return -self + other
+
+    def __rtruediv__(self, other):
+        """Handles ``other / self`` when ``other`` is a plain int or float.
+
+        Division does not commute, so this inverts this value rather than
+        delegating to ``__truediv__``.
+        """
+
+        return other * self**-1
+
     def __neg__(self):
         """Negates this value, expressed as multiplication by -1."""
 
