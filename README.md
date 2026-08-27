@@ -8,8 +8,10 @@ DAG, so a single neuron gets chopped into its individual adds and multiplies.
 `Neuron` into `Layer` into `MLP` with a PyTorch-like API.
 
 Ignoring docstrings, `Value` is about 90 lines, `Tensor` about 74, and the nn
-library about 36. NumPy is the only dependency and is used purely as an array
-container and BLAS backend: every derivative here is hand-written.
+library about 36. NumPy is the only runtime dependency and is used purely as an
+array container and BLAS backend: every derivative here is hand-written.
+PyTorch is pulled in only by the test group, as a reference to check gradients
+against.
 
 A reimplementation of [karpathy/micrograd](https://github.com/karpathy/micrograd),
 extended with the array engine. Educational, not fast.
@@ -158,6 +160,27 @@ renderings of the computation graph at each stage.
 - `notebooks/micrograd_tensor_addition.ipynb`: the same progression for arrays,
   including deriving the matmul gradient shapes by hand on a `(2,1) @ (1,3)`
   graph before automating them.
+
+### Running tests
+
+The tests use [PyTorch](https://pytorch.org/) as a reference: every test builds
+the same expression twice, once with this engine and once with `torch`, then
+asserts the forward values and the gradients agree. Torch is an opt-in
+dependency group, so a plain `uv sync` stays NumPy-only.
+
+```bash
+uv run --group test pytest
+```
+
+`tests/test_value.py` covers the arithmetic operators, the reflected forms, each
+activation, the power rule's rejection of a `Value` exponent, gradient
+accumulation through a diamond graph, and a hand-built neuron. `tests/test_tensor.py`
+covers the elementwise ops, matmul on a deliberately non-square `(2,3) @ (3,4)`
+product where a misplaced transpose cannot accidentally still typecheck,
+transpose, the float32 cast, and the sum-of-elements meaning of a non-scalar
+root. Two tests pin known divergences rather than correct behaviour: the
+broadcasting gap above, and `relu`'s subgradient at exactly 0, which is 1 here
+and 0 in PyTorch.
 
 ### License
 
