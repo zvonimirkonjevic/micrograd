@@ -289,11 +289,12 @@ class Tensor:
   back to them, but it batches the arithmetic through NumPy instead of looping
   over scalars.
 
-  This is a naive implementation: the elementwise operations assume both
-  operands already share a shape. NumPy will happily broadcast them in the
-  forward pass, but the backward pass does not reduce the gradient back to
-  each operand's own shape, so a broadcast operation raises during
-  ``backward``.
+  The elementwise operations broadcast the way NumPy does. Broadcasting
+  reuses an operand across the positions it was stretched over, so the chain
+  rule sums the incoming gradient over those positions: each backward pass
+  routes its gradient through :func:`unbroadcast` to reduce it back to the
+  operand's own shape. ``__matmul__`` is the exception, it requires two 2-D
+  operands and broadcasts nothing.
 
   Attributes:
     data: The forward-pass array, always ``float32``.
@@ -332,7 +333,8 @@ class Tensor:
     gradient flows through unchanged.
 
     Args:
-      other: A ``Tensor`` or anything ``Tensor`` accepts, of the same shape.
+      other: A ``Tensor`` or anything ``Tensor`` accepts, broadcastable
+        against this tensor's shape.
 
     Returns:
       A new ``Tensor`` holding the elementwise sum.
@@ -342,8 +344,8 @@ class Tensor:
     out = Tensor(self.data + other.data, (self, other), "+")
 
     def _backward():
-      self.grad += out.grad * 1.0
-      other.grad += out.grad * 1.0
+      self.grad += unbroadcast(out.grad, self.data.shape)
+      other.grad += unbroadcast(out.grad, other.data.shape)
     out._backward = _backward
     return out
 
@@ -354,7 +356,8 @@ class Tensor:
     each gradient is scaled by its partner's forward value.
 
     Args:
-      other: A ``Tensor`` or anything ``Tensor`` accepts, of the same shape.
+      other: A ``Tensor`` or anything ``Tensor`` accepts, broadcastable
+        against this tensor's shape.
 
     Returns:
       A new ``Tensor`` holding the elementwise product.
@@ -364,8 +367,8 @@ class Tensor:
     out = Tensor(self.data * other.data, (self, other), "*")
 
     def _backward():
-      self.grad += out.grad * other.data
-      other.grad += out.grad * self.data
+      self.grad += unbroadcast(out.grad * other.data, self.data.shape)
+      other.grad += unbroadcast(out.grad * self.data, other.data.shape)
 
     out._backward = _backward
     return out
@@ -414,7 +417,8 @@ class Tensor:
     """Subtracts ``other`` elementwise.
 
     Args:
-      other: A ``Tensor`` or anything ``Tensor`` accepts, of the same shape.
+      other: A ``Tensor`` or anything ``Tensor`` accepts, broadcastable
+        against this tensor's shape.
 
     Returns:
       A new ``Tensor`` holding the elementwise difference. Its backward pass
@@ -426,8 +430,8 @@ class Tensor:
     out = Tensor(self.data - other.data, (self, other), "-")
 
     def _backward():
-      self.grad += out.grad
-      other.grad += -out.grad
+      self.grad += unbroadcast(out.grad, self.data.shape)
+      other.grad += unbroadcast(-out.grad, other.data.shape)
     out._backward = _backward
     return out
 
@@ -435,7 +439,8 @@ class Tensor:
     """Divides by ``other`` elementwise.
 
     Args:
-      other: A ``Tensor`` or anything ``Tensor`` accepts, of the same shape.
+      other: A ``Tensor`` or anything ``Tensor`` accepts, broadcastable
+        against this tensor's shape.
 
     Returns:
       A new ``Tensor`` holding the elementwise quotient. Its backward pass
@@ -447,8 +452,8 @@ class Tensor:
     out = Tensor(self.data / other.data, (self, other), "/")
 
     def _backward():
-      self.grad += out.grad / other.data
-      other.grad += -out.grad * self.data / other.data**2
+      self.grad += unbroadcast(out.grad / other.data, self.data.shape)
+      other.grad += unbroadcast(-out.grad * self.data / other.data**2, other.data.shape)
     out._backward = _backward
     return out
 
@@ -497,3 +502,27 @@ class Tensor:
     self.grad = np.ones_like(self.data)
     for node in reversed(topo):
       node._backward()
+
+
+# ================================
+# Helpers
+# ================================
+
+def unbroadcast(grad, shape):
+  """Reduces a broadcasted gradient back to the original shape.
+
+  Args:
+    grad: The broadcasted gradient, shaped like the output of the forward
+      operation.
+    shape: The original shape of the operand that was broadcasted.
+
+  Returns:
+    The reduced gradient, shaped like ``shape``.
+  """
+
+  while len(grad.shape) > len(shape):
+    grad = grad.sum(axis=0)
+  for axis, size in enumerate(shape):
+    if size == 1:
+      grad = grad.sum(axis=axis, keepdims=True)
+  return grad
