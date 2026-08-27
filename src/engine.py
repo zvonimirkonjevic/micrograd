@@ -127,6 +127,11 @@ class Value:
         out._backward = _backward
         return out
 
+    def __rmul__(self, other):
+        """Handles ``other * self`` when ``other`` is a plain int or float."""
+
+        return self * other
+
     def __neg__(self):
         """Negates this value, expressed as multiplication by -1."""
 
@@ -235,8 +240,3 @@ class Value:
         self.grad = 1.0
         for node in reversed(topo):
             node._backward()
-
-    def __rmul__(self, other):
-        """Handles ``other * self`` when ``other`` is a plain int or float."""
-
-        return self * other
