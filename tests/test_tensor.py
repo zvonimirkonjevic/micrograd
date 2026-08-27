@@ -153,20 +153,45 @@ def test_reflected_operators_are_not_supported():
         2.0 * t
 
 
-def test_broadcasting_raises_in_backward():
-    """Documents the known broadcasting gap as a deliberate limitation.
+BROADCAST_SHAPES = [
+    ((2, 3), (3,)),    # operand missing a leading axis entirely
+    ((2, 3), (1, 3)),  # size-1 row stretched down
+    ((2, 1), (2, 3)),  # size-1 column stretched across
+    ((1, 1), (2, 3)),  # both axes stretched at once
+    ((2, 3), ()),      # scalar operand
+]
 
-    The forward pass broadcasts because NumPy does. The backward pass never
-    reduces the gradient back to each operand's shape, so accumulating a (2,2)
-    gradient into a (2,) leaf fails. This test asserts the current behaviour;
-    it is the test to delete when reduction is implemented.
+
+def arr(shape):
+    """Returns a distinct, nonzero float32 array of ``shape``.
+
+    Nonzero everywhere so the division case stays finite, and no two entries
+    repeat so a gradient summed over the wrong axis cannot coincidentally match.
     """
 
-    a = Tensor(A)
-    b = Tensor([1.0, 1.0])
+    n = int(np.prod(shape))
+    return (np.arange(1, n + 1, dtype=np.float32) / 2 + 0.25).reshape(shape)
 
-    out = a + b
-    assert out.data.shape == (2, 2)
 
-    with pytest.raises(ValueError, match="non-broadcastable"):
-        out.backward()
+@pytest.mark.parametrize("op", ["add", "mul", "sub", "truediv"])
+@pytest.mark.parametrize("lhs_shape, rhs_shape", BROADCAST_SHAPES)
+def test_broadcast_gradients_match_torch(op, lhs_shape, rhs_shape):
+    """Checks a broadcast operand's gradient is reduced back to its own shape.
+
+    Broadcasting reuses an operand across every position it was stretched over,
+    so the chain rule adds up the gradient arriving at each of those positions.
+    Shapes are asserted on top of ``check``: a gradient left at the broadcast
+    shape would fail loudly when accumulated into a leaf, but one reduced along
+    the wrong axis can still land on a plausible shape.
+    """
+
+    import operator
+
+    fn = getattr(operator, op)
+    lhs, rhs = arr(lhs_shape), arr(rhs_shape)
+    a, b = Tensor(lhs), Tensor(rhs)
+    at, bt = tt(lhs), tt(rhs)
+
+    check(fn(a, b), fn(at, bt), [a, b], [at, bt])
+    assert a.grad.shape == lhs_shape
+    assert b.grad.shape == rhs_shape
