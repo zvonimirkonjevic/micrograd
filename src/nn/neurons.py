@@ -98,3 +98,8 @@ class TensorNeuron:
     act = (x * self.w).sum() + self.b
     out = act.tanh()
     return out
+
+  def parameters(self):
+    """Returns the weights followed by the bias."""
+
+    return [self.w, self.b]

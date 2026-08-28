@@ -85,3 +85,8 @@ class TensorMLP:
       x = layer(x)
 
     return x
+
+  def parameters(self):
+    """Returns the parameters of every layer in the network, flattened."""
+
+    return [p for layer in self.layers for p in layer.parameters()]

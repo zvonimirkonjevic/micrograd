@@ -88,3 +88,8 @@ class TensorLayer:
       x = Tensor(np.atleast_2d(x))
     outs = x @ self.w + self.b
     return outs
+
+  def parameters(self):
+    """Returns the weight matrix followed by the bias vector."""
+
+    return [self.w, self.b]
