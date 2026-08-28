@@ -1,8 +1,8 @@
-from .neurons import Neuron
+from .neurons import ValueNeuron
 from .nn import Module
 
 
-class Layer(Module):
+class ValueLayer(Module):
     """A fully connected layer: a list of independent neurons.
 
     Attributes:
@@ -17,7 +17,7 @@ class Layer(Module):
             layer_size: Number of neurons, which is the layer's output width.
         """
 
-        self.neurons = [Neuron(input_size) for _ in range(layer_size)]
+        self.neurons = [ValueNeuron(input_size) for _ in range(layer_size)]
         
     def __call__(self, x):
         """Runs the forward pass for one input vector.

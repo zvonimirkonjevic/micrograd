@@ -4,7 +4,7 @@ from .nn import Module
 from src.engines.value import Value
 
 
-class Neuron(Module):
+class ValueNeuron(Module):
     """A single neuron computing ``tanh(w . x + b)``.
 
     Weights and bias are initialized uniformly in [-1, 1].

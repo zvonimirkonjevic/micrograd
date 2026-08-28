@@ -121,7 +121,7 @@ def test_sum_builtin_works_over_values():
     """Checks that ``__radd__`` makes the builtin ``sum`` usable.
 
     ``sum`` starts its accumulation from the plain integer 0, so without the
-    reflected add the first iteration raises. ``Neuron.__call__`` relies on this.
+    reflected add the first iteration raises. ``ValueNeuron.__call__`` relies on this.
     """
 
     xs = [Value(1.0), Value(2.0), Value(3.0)]

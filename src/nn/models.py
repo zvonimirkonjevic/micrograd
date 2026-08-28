@@ -1,8 +1,8 @@
 from .nn import Module
-from .layers import Layer
+from .layers import ValueLayer
 
 
-class MLP(Module):
+class ValueMLP(Module):
     """A multi-layer perceptron: layers applied in sequence.
 
     Attributes:
@@ -20,7 +20,7 @@ class MLP(Module):
         """
 
         sz = [input_size] + layers_sizes
-        self.layers = [Layer(sz[i], sz[i+1]) for i in range(len(layers_sizes))]
+        self.layers = [ValueLayer(sz[i], sz[i+1]) for i in range(len(layers_sizes))]
 
     def __call__(self, x):
         """Runs the forward pass through every layer in sequence.
