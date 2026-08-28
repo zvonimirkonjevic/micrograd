@@ -72,11 +72,13 @@ class TensorMLP:
     """Runs the forward pass through every layer in sequence.
 
     Args:
-      x: A ``Tensor`` or anything ``Tensor`` accepts, with a trailing
-        dimension of ``input_size``.
+      x: A 2-D ``Tensor`` of shape ``(batch_size, input_size)``, or a raw
+        array-like, which :class:`TensorLayer` wraps and promotes to 2-D. Only
+        2-D input is accepted, for the reason given there.
 
     Returns:
-      A ``Tensor`` holding the final layer's output.
+      A ``Tensor`` of shape ``(batch_size, output_sizes[-1])`` holding the
+      final layer's output.
     """
 
     for layer in self.layers:

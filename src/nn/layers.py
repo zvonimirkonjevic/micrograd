@@ -71,17 +71,20 @@ class TensorLayer:
     """Runs the forward pass for a batch of input vectors.
 
     Args:
-      x: A ``Tensor`` or anything ``Tensor`` accepts, with a trailing
-        dimension of ``input_size``. Raw array-likes are wrapped so callers
-        can pass plain lists.
+      x: A 2-D ``Tensor`` of shape ``(batch_size, input_size)``. Only 2-D
+        input is accepted: :meth:`Tensor.__matmul__` requires two 2-D
+        operands, and a 1-D ``Tensor`` is passed through as given, which fails
+        in the backward pass. Raw array-likes are wrapped so callers can pass
+        plain lists, and a 1-D one is promoted to a single-row batch of shape
+        ``(1, input_size)``.
 
     Returns:
-      A ``Tensor`` of shape ``(..., output_size)`` holding the pre-activation
-      outputs. No nonlinearity is applied here, unlike :class:`ValueLayer`,
-      whose neurons each apply ``tanh``.
+      A ``Tensor`` of shape ``(batch_size, output_size)`` holding the
+      pre-activation outputs. No nonlinearity is applied here, unlike
+      :class:`ValueLayer`, whose neurons each apply ``tanh``.
     """
 
     if not isinstance(x, Tensor):
-      x = Tensor(x)
+      x = Tensor(np.atleast_2d(x))
     outs = x @ self.w + self.b
     return outs
