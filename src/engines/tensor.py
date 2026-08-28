@@ -24,6 +24,12 @@ class Tensor:
       between iterations.
   """
 
+  # NumPy would otherwise treat a Tensor as an opaque object and broadcast an
+  # ndarray operand elementwise against it, yielding an object array of
+  # Tensors. Setting this to None makes ndarray's operators return
+  # NotImplemented, so Python falls back to the reflected methods below.
+  __array_ufunc__ = None
+
   def __init__(self, data, _children=(), _op=''):
     """Initializes the tensor and its node in the computation graph.
 
@@ -177,6 +183,67 @@ class Tensor:
       other.grad += unbroadcast(-out.grad * self.data / other.data**2, other.data.shape)
     out._backward = _backward
     return out
+
+  def __pow__(self, other):
+    """Raises this tensor to a constant power elementwise.
+
+    Only numeric exponents are supported, which keeps the backward rule the
+    simple power rule ``n * x ** (n - 1)``. A ``Tensor`` exponent would also
+    require a gradient path through the exponent itself.
+
+    The exponent is a plain number rather than an operand, so this node is
+    unary: the output has this tensor's shape, nothing is stretched, and the
+    incoming gradient needs no reduction.
+
+    Args:
+      other: An int or float exponent.
+
+    Returns:
+      A new ``Tensor`` holding ``self.data ** other``.
+
+    Raises:
+      AssertionError: If ``other`` is not an int or float.
+    """
+
+    assert isinstance(other, (int, float)), "only supporting int/float powers for now"
+    out = Tensor(self.data**other, (self,), f"**{other}")
+
+    def _backward():
+      self.grad += out.grad * (other * self.data**(other-1))
+    out._backward = _backward
+    return out
+
+  def __rmul__(self, other):
+    """Handles ``other * self`` when ``other`` is a number or array-like."""
+
+    return self * other
+
+  def __radd__(self, other):
+    """Handles ``other + self`` when ``other`` is a number or array-like.
+
+    Also what makes the builtin ``sum`` work over ``Tensor`` objects, since it
+    starts its accumulation from the plain integer 0.
+    """
+
+    return self + other
+
+  def __rsub__(self, other):
+    """Handles ``other - self`` when ``other`` is a number or array-like.
+
+    Subtraction does not commute, so this wraps ``other`` as the minuend
+    rather than delegating to :meth:`__sub__`.
+    """
+
+    return Tensor(other) - self
+
+  def __rtruediv__(self, other):
+    """Handles ``other / self`` when ``other`` is a number or array-like.
+
+    Division does not commute, so this wraps ``other`` as the dividend rather
+    than delegating to :meth:`__truediv__`.
+    """
+
+    return Tensor(other) / self
 
   def transpose(self):
     """Reverses the tensor's axes.

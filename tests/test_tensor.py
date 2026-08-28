@@ -139,18 +139,57 @@ def test_data_is_cast_to_float32():
     assert t.grad.shape == t.data.shape
 
 
-def test_reflected_operators_are_not_supported():
-    """Documents that ``Tensor`` has no reflected operators, unlike ``Value``.
+@pytest.mark.parametrize("op", ["add", "mul", "sub", "truediv"])
+def test_reflected_operators_match_torch(op):
+    """Checks each reflected operator with a plain number on the left.
 
-    A plain number on the left has no ``__mul__`` that understands ``Tensor``,
-    and ``Tensor`` defines no ``__rmul__``, so Python gives up with a
-    ``TypeError``. Locked down so the gap fails loudly rather than drifting.
+    ``sub`` and ``truediv`` do not commute, so these also pin the operand
+    order: ``2.0 - t`` must not quietly become ``t - 2.0``.
     """
 
-    t = Tensor(A)
-    assert isinstance(t * 2.0, Tensor)
-    with pytest.raises(TypeError):
-        2.0 * t
+    import operator
+
+    fn = getattr(operator, op)
+    a, at = Tensor(A), tt(A)
+
+    check(fn(2.0, a), fn(2.0, at), [a], [at])
+
+
+def test_ndarray_on_the_left_defers_to_the_reflected_operator():
+    """Checks that an ndarray operand does not swallow the ``Tensor``.
+
+    Without ``__array_ufunc__ = None`` NumPy treats a ``Tensor`` as an opaque
+    object and broadcasts elementwise against it, producing an object array of
+    whole Tensors instead of one ``Tensor`` node. That is silently wrong
+    rather than an error, so it is worth asserting the type directly.
+    """
+
+    ones = np.ones((2, 2), dtype=np.float32)
+    a, at = Tensor(A), tt(A)
+
+    out = ones * a
+    assert isinstance(out, Tensor)
+    check(out, torch.from_numpy(ones) * at, [a], [at])
+
+
+@pytest.mark.parametrize("exponent", [2, 3, -1, 0.5])
+def test_pow_matches_torch(exponent):
+    """Checks the power rule over integer, negative and fractional exponents.
+
+    The exponent is a constant rather than an operand, so the node is unary
+    and only ``a`` carries a gradient.
+    """
+
+    a, at = Tensor(A), tt(A)
+
+    check(a**exponent, at**exponent, [a], [at])
+
+
+def test_pow_rejects_a_tensor_exponent():
+    """Documents that a ``Tensor`` exponent has no gradient path here."""
+
+    with pytest.raises(AssertionError):
+        Tensor(A) ** Tensor(B)
 
 
 @pytest.mark.parametrize("fn", ["relu", "tanh"])

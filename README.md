@@ -64,9 +64,16 @@ print(a.grad)   # [[ 0.5 -0.5], [ 0.5 -0.5]], shaped like a
 print(w.grad)   # [[4.], [6.]],               shaped like w
 ```
 
-Supported: `+ - * /` elementwise, `@` matmul, unary `-`, and `transpose`. Data
-is cast to `float32`. There are no reflected operators and no activations yet,
-so `t * 2.0` works but `2.0 * t` raises `TypeError`.
+Supported: `+ - * / **` elementwise, `@` matmul, unary `-`, the reflected forms
+`__radd__`, `__rsub__`, `__rmul__`, `__rtruediv__`, `transpose`, `sum`, and the
+activations `relu` and `tanh`. Data is cast to `float32`.
+
+The reflected forms come with `__array_ufunc__ = None`. Without it a NumPy
+array on the left wins the dispatch, treats the `Tensor` as an opaque object
+and broadcasts elementwise against it, so `np.ones((2, 2)) * t` returns an
+object array holding four copies of the whole tensor rather than one node.
+Opting out of the ufunc protocol makes NumPy return `NotImplemented`, and
+Python falls back to `__rmul__`.
 
 Matmul is the first operation whose backward pass is not the forward pass with
 different numbers. For `C = A @ B`:
@@ -140,8 +147,10 @@ is traversed.
 - `Tensor.__matmul__` requires two 2-D operands. It does not broadcast over a
   batch dimension, and NumPy's 1-D matmul rules would silently produce
   mis-shaped gradients, so the elementwise ops broadcast but this one does not.
-- `Tensor` has no activations, so no neural nets are built on it yet. `src/nn.py`
-  runs entirely on `Value`.
+- `TensorLayer` applies no nonlinearity, unlike `ValueLayer`, whose neurons each
+  apply `tanh`. A `TensorMLP` is therefore a stack of linear maps, which
+  collapses to a single linear map: call an activation between layers yourself
+  to get a nonlinear network.
 - The scalar engine allocates a node per arithmetic operation. It is meant to be
   read, not to train anything of size.
 
@@ -174,9 +183,12 @@ accumulation through a diamond graph, and a hand-built neuron. `tests/test_tenso
 covers the elementwise ops, matmul on a deliberately non-square `(2,3) @ (3,4)`
 product where a misplaced transpose cannot accidentally still typecheck,
 transpose, the float32 cast, the sum-of-elements meaning of a non-scalar root,
-and each elementwise op against every shape broadcasting can stretch. One test
-pins a known divergence rather than correct behaviour: `relu`'s subgradient at
-exactly 0, which is 1 here and 0 in PyTorch.
+each elementwise op against every shape broadcasting can stretch, the power
+rule over integer, negative and fractional exponents, both activations, the
+reflected forms with a number on the left, and the ndarray-on-the-left dispatch
+that `__array_ufunc__` governs. One test pins a known divergence rather than
+correct behaviour: `relu`'s subgradient at exactly 0, which is 1 here and 0 in
+PyTorch.
 
 ### License
 
