@@ -153,6 +153,16 @@ def test_reflected_operators_are_not_supported():
         2.0 * t
 
 
+@pytest.mark.parametrize("fn", ["relu", "tanh"])
+def test_activations_match_torch(fn):
+    """Checks every elementwise nonlinearity on a mix of signs and zero."""
+
+    x = [[-2.0, -0.5], [0.0, 1.5]]
+    a, at = Tensor(x), tt(x)
+
+    check(getattr(a, fn)(), getattr(torch, fn)(at), [a], [at])
+
+
 BROADCAST_SHAPES = [
     ((2, 3), (3,)),    # operand missing a leading axis entirely
     ((2, 3), (1, 3)),  # size-1 row stretched down
