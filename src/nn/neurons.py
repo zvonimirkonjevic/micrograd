@@ -86,14 +86,15 @@ class TensorNeuron:
         lists.
 
     Returns:
-      A ``Tensor`` holding the activated output as a single-element 1-D array.
-      :meth:`Tensor.sum` collapses to 0-d, so the result is flattened back to
-      shape ``(1,)`` to keep the output shape uniform across neurons.
+      A 0-d ``Tensor`` holding the activated output. :meth:`Tensor.sum`
+      collapses the dot product to 0-d and the bias is 0-d as well, so the
+      output stays 0-d. Reshaping it afterwards would leave ``data`` and the
+      already allocated ``grad`` with different shapes, which breaks the
+      backward pass.
     """
 
     if not isinstance(x, Tensor):
       x = Tensor(x)
     act = (x * self.w).sum() + self.b
     out = act.tanh()
-    out.data = out.data.flatten()
     return out
