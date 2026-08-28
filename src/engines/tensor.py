@@ -225,14 +225,33 @@ class Tensor:
       node._backward()
 
   def relu(self):
+    """Applies the ReLU nonlinearity elementwise.
+
+    Returns:
+      A new ``Tensor`` holding ``max(data, 0)``. Its backward pass passes the
+      gradient through where the input was positive and blocks it elsewhere.
+      The derivative is undefined at exactly 0; it is taken as 0 here, which
+      is the usual convention.
+    """
+
     out = Tensor(np.maximum(self.data, 0), (self,), "ReLU")
+
     def _backward():
       self.grad += out.grad * (self.data > 0)
     out._backward = _backward
     return out
 
   def tanh(self):
+    """Applies the hyperbolic tangent nonlinearity elementwise.
+
+    Returns:
+      A new ``Tensor`` holding ``tanh(data)``. Its backward pass scales the
+      gradient by ``1 - tanh(x) ** 2``, which is read off the already computed
+      forward value ``out.data`` rather than recomputing the tanh.
+    """
+
     out = Tensor(np.tanh(self.data), (self,), "tanh")
+
     def _backward():
       self.grad += out.grad * (1 - out.data ** 2)
     out._backward = _backward
