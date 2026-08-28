@@ -238,6 +238,26 @@ class Tensor:
     out._backward = _backward
     return out
 
+  def sum(self):
+    """Sums every element into a scalar tensor.
+
+    This is the usual way to collapse a network's outputs into the single
+    scalar that :meth:`backward` expects.
+
+    Returns:
+      A new 0-d ``Tensor`` holding the total. Each input element contributes
+      to the sum exactly once, so the local derivative is 1 everywhere and the
+      backward pass copies the scalar incoming gradient into every position.
+      NumPy broadcasts the 0-d ``out.grad`` across ``self.grad`` to do so.
+    """
+
+    out = Tensor(self.data.sum(), (self,), "sum")
+
+    def _backward():
+      self.grad += out.grad
+    out._backward = _backward
+    return out
+
 
 # ================================
 # Helpers

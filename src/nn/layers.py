@@ -1,5 +1,8 @@
+import numpy as np
+
 from .neurons import ValueNeuron
 from .nn import Module
+from src.engines.tensor import Tensor
 
 
 class ValueLayer(Module):
@@ -38,3 +41,47 @@ class ValueLayer(Module):
         """Returns the parameters of every neuron in the layer, flattened."""
 
         return [p for neuron in self.neurons for p in neuron.parameters()]
+
+
+class TensorLayer:
+  """A fully connected layer on the ``Tensor`` engine.
+
+  The array-valued counterpart of :class:`ValueLayer`. Where ``ValueLayer``
+  keeps a list of independent neurons, this packs the whole layer into one
+  weight matrix and one bias vector, so the forward pass is a single matrix
+  multiply instead of one dot product per neuron.
+
+  Attributes:
+    w: The ``(input_size, output_size)`` weight matrix.
+    b: The ``(output_size,)`` bias vector, broadcast across the batch.
+  """
+
+  def __init__(self, input_size: int, output_size: int):
+    """Initializes the weight matrix and bias with random values in [-1, 1].
+
+    Args:
+      input_size: Length of the input vector fed to the layer.
+      output_size: The layer's output width.
+    """
+
+    self.w = Tensor(np.random.uniform(-1, 1, size=(input_size, output_size)))
+    self.b = Tensor(np.random.uniform(-1, 1, size=output_size))
+
+  def __call__(self, x):
+    """Runs the forward pass for a batch of input vectors.
+
+    Args:
+      x: A ``Tensor`` or anything ``Tensor`` accepts, with a trailing
+        dimension of ``input_size``. Raw array-likes are wrapped so callers
+        can pass plain lists.
+
+    Returns:
+      A ``Tensor`` of shape ``(..., output_size)`` holding the pre-activation
+      outputs. No nonlinearity is applied here, unlike :class:`ValueLayer`,
+      whose neurons each apply ``tanh``.
+    """
+
+    if not isinstance(x, Tensor):
+      x = Tensor(x)
+    outs = x @ self.w + self.b
+    return outs

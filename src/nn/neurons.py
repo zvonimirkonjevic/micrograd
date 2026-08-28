@@ -1,7 +1,9 @@
 import random
+import numpy as np
 
 from .nn import Module
 from src.engines.value import Value
+from src.engines.tensor import Tensor
 
 
 class ValueNeuron(Module):
@@ -47,3 +49,51 @@ class ValueNeuron(Module):
         """Returns the weights followed by the bias."""
 
         return self.w + [self.b]
+
+
+class TensorNeuron:
+  """A single neuron computing ``tanh(w . x + b)`` on the ``Tensor`` engine.
+
+  The array-valued counterpart of :class:`ValueNeuron`. It holds the same
+  parameters, but as two ``Tensor`` objects instead of a list of scalar
+  ``Value`` objects, so the dot product runs as one NumPy multiply followed by
+  a :meth:`Tensor.sum` rather than a Python loop.
+
+  Weights and bias are initialized uniformly in [-1, 1].
+
+  Attributes:
+    w: A 1-D ``Tensor`` of ``input_size`` weights.
+    b: A 0-d ``Tensor`` holding the bias.
+  """
+
+  def __init__(self, input_size: int):
+    """Initializes weights and bias with random values in [-1, 1].
+
+    Args:
+      input_size: Number of inputs this neuron accepts, which is also the
+        number of weights created.
+    """
+
+    self.w = Tensor(np.random.uniform(low=-1, high=1, size=(input_size, 1)).flatten())
+    self.b = Tensor(np.random.uniform(low=-1, high=1))
+
+  def __call__(self, x):
+    """Runs the forward pass for one input vector.
+
+    Args:
+      x: A ``Tensor`` or anything ``Tensor`` accepts, of length
+        ``input_size``. Raw array-likes are wrapped so callers can pass plain
+        lists.
+
+    Returns:
+      A ``Tensor`` holding the activated output as a single-element 1-D array.
+      :meth:`Tensor.sum` collapses to 0-d, so the result is flattened back to
+      shape ``(1,)`` to keep the output shape uniform across neurons.
+    """
+
+    if not isinstance(x, Tensor):
+      x = Tensor(x)
+    act = (x * self.w).sum() + self.b
+    out = act.tanh()
+    out.data = out.data.flatten()
+    return out
