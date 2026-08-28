@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import torch
 
-from src.engine import Tensor
+from src.engines.tensor import Tensor
 
 RTOL = 1e-6
 ATOL = 1e-6

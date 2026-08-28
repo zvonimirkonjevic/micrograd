@@ -9,7 +9,7 @@ formulas rather than by float32 rounding.
 import pytest
 import torch
 
-from src.engine import Value
+from src.engines.value import Value
 
 TOL = 1e-12
 
