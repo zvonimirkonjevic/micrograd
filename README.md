@@ -4,14 +4,16 @@ Two reverse-mode autodiff engines and a small neural net library on top of them.
 `Value` is scalar-valued: every number is a node in a dynamically constructed
 DAG, so a single neuron gets chopped into its individual adds and multiplies.
 `Tensor` is the array-valued counterpart: same design, but each node holds an
-`np.ndarray` and the arithmetic is batched through NumPy. `src/nn.py` stacks
-`Neuron` into `Layer` into `MLP` with a PyTorch-like API.
+`np.ndarray` and the arithmetic is batched through NumPy. `src/nn/` stacks
+`Neuron` into `Layer` into `MLP` with a PyTorch-like API, once per engine, plus
+an `SGD` optimizer.
 
-Ignoring docstrings, `Value` is about 90 lines, `Tensor` about 74, and the nn
-library about 36. NumPy is the only runtime dependency and is used purely as an
-array container and BLAS backend: every derivative here is hand-written.
-PyTorch is pulled in only by the test group, as a reference to check gradients
-against.
+Ignoring docstrings, `Value` is about 91 lines, `Tensor` about 123, and the nn
+package about 94. NumPy is the only library the engines and the nn package
+import, and it is used purely as an array container and BLAS backend: every
+derivative here is hand-written. graphviz, matplotlib and scikit-learn are
+dependencies of the notebooks, not of the library. PyTorch is pulled in only by
+the test group, as a reference to check gradients against.
 
 A reimplementation of [karpathy/micrograd](https://github.com/karpathy/micrograd),
 extended with the array engine. Educational, not fast.
@@ -22,12 +24,29 @@ extended with the array engine. Educational, not fast.
 uv sync
 ```
 
-Requires Python 3.14.
+Requires Python 3.14. The notebooks additionally want a system `graphviz`
+binary for the graph renderings.
+
+### Layout
+
+```
+src/engines/value.py   the scalar engine
+src/engines/tensor.py  the array engine
+src/nn/nn.py           Module, the parameters()/zero_grad() base class
+src/nn/neurons.py      ValueNeuron, TensorNeuron
+src/nn/layers.py       ValueLayer, TensorLayer
+src/nn/models.py       ValueMLP, TensorMLP
+src/nn/optim.py        SGD
+```
+
+Every nn class comes in a `Value` and a `Tensor` flavour, and the two are not
+interchangeable: a `ValueMLP` consumes and returns `Value` objects, a
+`TensorMLP` consumes and returns `Tensor` objects.
 
 ### Example usage: the scalar engine
 
 ```python
-from src.engine import Value
+from src.engines.value import Value
 
 x = Value(2.0)
 y = Value(-3.0)
@@ -53,7 +72,7 @@ syntax.
 ### Example usage: the array engine
 
 ```python
-from src.engine import Tensor
+from src.engines.tensor import Tensor
 
 a = Tensor([[1.0, 2.0], [3.0, 4.0]])
 w = Tensor([[0.5], [-0.5]])
@@ -67,6 +86,15 @@ print(w.grad)   # [[4.], [6.]],               shaped like w
 Supported: `+ - * / **` elementwise, `@` matmul, unary `-`, the reflected forms
 `__radd__`, `__rsub__`, `__rmul__`, `__rtruediv__`, `transpose`, `sum`, and the
 activations `relu` and `tanh`. Data is cast to `float32`.
+
+The elementwise ops broadcast the way NumPy does, which the backward pass has
+to undo. Broadcasting reuses an operand across the positions it was stretched
+over, so the chain rule sums the incoming gradient over those positions: every
+elementwise backward routes its gradient through `unbroadcast`, which sums away
+the axes NumPy prepended and then sums, with `keepdims`, the axes the operand
+had as length 1. Without it a gradient comes back shaped like the output rather
+than like the operand, and `grad += ...` broadcasts it into the wrong shape
+instead of failing.
 
 The reflected forms come with `__array_ufunc__ = None`. Without it a NumPy
 array on the left wins the dispatch, treats the `Tensor` as an opaque object
@@ -91,15 +119,15 @@ agreement a decent check on whether the rule is correct. Both operands must be
 treats a non-scalar root as the sum of its elements. Call it on a scalar loss to
 get the gradients you actually want.
 
-### Training a neural net
+### Training a neural net: the scalar engine
 
-`MLP(3, [4, 4, 1])` is 3 inputs, two hidden layers of 4, and a scalar output:
-41 parameters, each an individual `Value`.
+`ValueMLP(3, [4, 4, 1])` is 3 inputs, two hidden layers of 4, and a scalar
+output: 41 parameters, each an individual `Value`.
 
 ```python
-from src.nn import MLP
+from src.nn.models import ValueMLP
 
-model = MLP(3, [4, 4, 1])
+model = ValueMLP(3, [4, 4, 1])
 
 xs = [[2.0, 3.0, -1.0], [3.0, -1.0, 0.5], [0.5, 1.0, 1.0], [1.0, 1.0, -1.0]]
 ys = [1.0, -1.0, -1.0, 1.0]
@@ -121,6 +149,47 @@ print(loss.data)  # ~0.01 after 50 steps of SGD
 is what lets a node reachable by several paths sum its contributions correctly,
 and it is also what makes the last step's gradients leak into this one if nobody
 clears them.
+
+### Training a neural net: the array engine
+
+The same network on the `Tensor` engine is 6 parameter tensors rather than 41
+scalars: one weight matrix and one bias vector per layer. The whole batch goes
+through in one forward pass instead of a Python loop over the rows, and `SGD`
+takes over the parameter update.
+
+```python
+from src.engines.tensor import Tensor
+from src.nn.models import TensorMLP
+from src.nn.optim import SGD
+
+model = TensorMLP(3, [4, 4, 1])
+optimizer = SGD(model.parameters(), lr=0.05)
+
+xs = Tensor([[2.0, 3.0, -1.0], [3.0, -1.0, 0.5], [0.5, 1.0, 1.0], [1.0, 1.0, -1.0]])
+ys = Tensor([[1.0], [-1.0], [-1.0], [1.0]])
+
+for _ in range(50):
+    preds = model(xs)
+    loss = ((preds - ys) ** 2).sum()
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+print(loss.data)  # a few hundredths after 50 steps of SGD
+```
+
+`.sum()` is doing real work here. `backward()` seeds the root with ones, so
+calling it on the `(4, 1)` matrix of per-sample errors would differentiate the
+sum of those errors implicitly, with nothing naming the loss. Summing first
+makes the scalar explicit.
+
+`SGD` is deliberately thin: it holds the parameter list and a learning rate, and
+`step()` is one `p.data += -lr * p.grad` per parameter. It exists to move the
+update rule out of the training loop, not because plain SGD needs any state. Its
+`zero_grad()` resets to `np.zeros_like(p.data)`, which is why it belongs to the
+`Tensor` engine, where `Module.zero_grad()` resets to the scalar `0.0` for
+`Value` parameters.
 
 ### How it works
 
@@ -147,10 +216,14 @@ is traversed.
 - `Tensor.__matmul__` requires two 2-D operands. It does not broadcast over a
   batch dimension, and NumPy's 1-D matmul rules would silently produce
   mis-shaped gradients, so the elementwise ops broadcast but this one does not.
-- `TensorLayer` applies no nonlinearity, unlike `ValueLayer`, whose neurons each
-  apply `tanh`. A `TensorMLP` is therefore a stack of linear maps, which
-  collapses to a single linear map: call an activation between layers yourself
-  to get a nonlinear network.
+- `TensorLayer` takes its activation as a constructor argument, defaulting to
+  `Tensor.tanh`, and applies it to the whole output matrix at once. Where
+  `ValueLayer` hardcodes `tanh` inside each neuron, `TensorMLP` gives every
+  layer the same activation, including the last one, so a regression target
+  outside `[-1, 1]` needs `activation=None` on an output layer built directly
+  as a `TensorLayer`.
+- `Tensor.sum()` collapses the entire array to 0-d. There is no `axis`
+  argument, so a per-sample loss cannot be reduced along one dimension only.
 - The scalar engine allocates a node per arithmetic operation. It is meant to be
   read, not to train anything of size.
 
@@ -164,14 +237,18 @@ renderings of the computation graph at each stage.
   automatic traversal.
 - `notebooks/micrograd_tensor_addition.ipynb`: the same progression for arrays,
   including deriving the matmul gradient shapes by hand on a `(2,1) @ (1,3)`
-  graph before automating them.
+  graph before automating them, then an MLP and a gradient descent loop.
+- `notebooks/micrograd_engine_benchmark.ipynb`: the two engines trained on the
+  same scikit-learn datasets, matched parameter for parameter, timed against
+  each other, and finished with loss curves and a decision boundary on
+  `make_circles`.
 
 ### Running tests
 
 The tests use [PyTorch](https://pytorch.org/) as a reference: every test builds
 the same expression twice, once with this engine and once with `torch`, then
 asserts the forward values and the gradients agree. Torch is an opt-in
-dependency group, so a plain `uv sync` stays NumPy-only.
+dependency group, so a plain `uv sync` does not pull it in.
 
 ```bash
 uv run --group test pytest
@@ -179,7 +256,8 @@ uv run --group test pytest
 
 `tests/test_value.py` covers the arithmetic operators, the reflected forms, each
 activation, the power rule's rejection of a `Value` exponent, gradient
-accumulation through a diamond graph, and a hand-built neuron. `tests/test_tensor.py`
+accumulation through a diamond graph, the topological sort's deduplication of a
+shared subexpression, and a hand-built neuron. `tests/test_tensor.py`
 covers the elementwise ops, matmul on a deliberately non-square `(2,3) @ (3,4)`
 product where a misplaced transpose cannot accidentally still typecheck,
 transpose, the float32 cast, the sum-of-elements meaning of a non-scalar root,
