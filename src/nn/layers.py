@@ -49,23 +49,31 @@ class TensorLayer:
   The array-valued counterpart of :class:`ValueLayer`. Where ``ValueLayer``
   keeps a list of independent neurons, this packs the whole layer into one
   weight matrix and one bias vector, so the forward pass is a single matrix
-  multiply instead of one dot product per neuron.
+  multiply followed by one activation, instead of one dot product and one
+  ``tanh`` per neuron.
 
   Attributes:
     w: The ``(input_size, output_size)`` weight matrix.
     b: The ``(output_size,)`` bias vector, broadcast across the batch.
+    activation: The nonlinearity applied to the layer's outputs, or ``None``
+      for a purely affine layer.
   """
 
-  def __init__(self, input_size: int, output_size: int):
+  def __init__(self, input_size: int, output_size: int, activation=Tensor.tanh):
     """Initializes the weight matrix and bias with random values in [-1, 1].
 
     Args:
       input_size: Length of the input vector fed to the layer.
       output_size: The layer's output width.
+      activation: A ``Tensor`` method applied to the layer's outputs, such as
+        ``Tensor.tanh`` or ``Tensor.relu``. Pass ``None`` for an affine layer,
+        which is what an output layer needs when the targets fall outside the
+        activation's range.
     """
 
     self.w = Tensor(np.random.uniform(-1, 1, size=(input_size, output_size)))
     self.b = Tensor(np.random.uniform(-1, 1, size=output_size))
+    self.activation = activation
 
   def __call__(self, x):
     """Runs the forward pass for a batch of input vectors.
@@ -79,15 +87,18 @@ class TensorLayer:
         ``(1, input_size)``.
 
     Returns:
-      A ``Tensor`` of shape ``(batch_size, output_size)`` holding the
-      pre-activation outputs. No nonlinearity is applied here, unlike
-      :class:`ValueLayer`, whose neurons each apply ``tanh``.
+      A ``Tensor`` of shape ``(batch_size, output_size)`` holding the layer's
+      outputs, activated unless ``activation`` is ``None``. The activation
+      runs on the whole matrix at once, which is where :class:`ValueLayer`
+      applies ``tanh`` inside every neuron.
     """
 
     if not isinstance(x, Tensor):
       x = Tensor(np.atleast_2d(x))
-    outs = x @ self.w + self.b
-    return outs
+    acts = x @ self.w + self.b
+    if self.activation is None:
+      return acts
+    return self.activation(acts)
 
   def parameters(self):
     """Returns the weight matrix followed by the bias vector."""

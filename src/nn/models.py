@@ -2,6 +2,7 @@ from typing import List
 
 from .nn import Module
 from .layers import ValueLayer, TensorLayer
+from src.engines.tensor import Tensor
 
 
 class ValueMLP(Module):
@@ -52,10 +53,11 @@ class TensorMLP:
   :class:`TensorLayer` instead of :class:`ValueLayer`.
 
   Attributes:
-    layers: The stacked layers, in forward order.
+    layers: The stacked layers, in forward order, each with the same
+      activation.
   """
 
-  def __init__(self, input_size: int, output_sizes: List[int]):
+  def __init__(self, input_size: int, output_sizes: List[int], activation=Tensor.tanh):
     """Builds the stack of layers from the requested widths.
 
     Args:
@@ -63,10 +65,12 @@ class TensorMLP:
       output_sizes: Output width of each layer, in order. Widths are chained
         so that layer ``i`` maps from the previous width to
         ``output_sizes[i]``.
+      activation: The nonlinearity given to every layer, including the last
+        one. See :class:`TensorLayer` for the accepted values.
     """
 
     sz = [input_size] + output_sizes
-    self.layers = [TensorLayer(sz[i], sz[i+1]) for i in range(len(output_sizes))]
+    self.layers = [TensorLayer(sz[i], sz[i+1], activation) for i in range(len(output_sizes))]
 
   def __call__(self, x):
     """Runs the forward pass through every layer in sequence.
