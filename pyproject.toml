@@ -5,6 +5,8 @@ description = "A tiny scalar-valued automatic differentiation engine and neural 
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "graphviz>=0.21",
+    "matplotlib>=3.11.1",
     "numpy>=2.5.2",
 ]
 
